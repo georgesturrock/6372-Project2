@@ -66,6 +66,6 @@ where kobetrain.game_id in (select game_id from gameshotpct);
 quit;
 
 proc sgscatter data=kobetrain;
-matrix shot_distance attendance arena_temp avgnoisedb game_pct / ellipse=(type=mean alpha=.05) diagonal=(histogram kernel);
+matrix attendance arena_temp avgnoisedb game_pct / ellipse=(type=mean alpha=.05) diagonal=(histogram kernel);
 run;
 
