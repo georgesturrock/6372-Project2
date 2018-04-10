@@ -65,7 +65,61 @@ where kobetrain.game_id = gameshotpct.game_id)
 where kobetrain.game_id in (select game_id from gameshotpct);
 quit;
 
+*sort data prior to running proc sgscatter;
+proc sort data=kobetrain;
+*by shot_zone_range;
+by shot_made_flag;
+run;
+
 proc sgscatter data=kobetrain;
+*by shot_zone_range;
+by shot_made_flag;
 matrix attendance arena_temp avgnoisedb game_pct / ellipse=(type=mean alpha=.05) diagonal=(histogram kernel);
 run;
 
+/* 
+**********************************
+*** Logistic Regression Models ***
+**********************************
+*/
+
+*kitchen sink logistic regression model;
+proc logistic data=kobetrain plots=all;
+class action_type combined_shot_type season shot_type shot_zone_area shot_zone_basic shot_zone_range opponent home_away achilles shaq;
+model shot_made_flag = action_type combined_shot_type minutes_remaining period season seconds_remaining shot_distance shot_type shot_zone_area shot_zone_basic shot_zone_range game_date opponent attendance arena_temp avgnoisedb game_pct home_away achilles shaq minutes_remaining*seconds_remaining / scale=none ctable clparm=wald lackfit;
+run;
+
+*manual logistic regression model;
+proc logistic data=kobetrain plots=all;
+class action_type shot_zone_area shot_zone_basic shot_zone_range home_away achilles;
+model shot_made_flag action_type minutes_remaining period seconds_remaining shot_zone_area shot_zone_basic shot_zone_range game_pct home_away achilles minutes_remaining*seconds_remaining / scale=none ctable clparm=wald lackfit;
+run;
+
+*Backward variable selection with Proc logistic;
+proc logistic data=kobetrain plots=all;
+class action_type combined_shot_type period season shot_type shot_zone_area shot_zone_basic shot_zone_range team_name opponent home_away achilles shaq;
+model shot_made_flag = action_type combined_shot_type minutes_remaining period season seconds_remaining shot_distance shot_type shot_zone_area shot_zone_basic shot_zone_range game_date opponent attendance arena_temp avgnoisedb game_pct home_away achilles shaq minutes_remaining*seconds_remaining / selection=backward;
+run;
+
+proc logistic data=kobetrain plots=all;
+class action_type period shot_zone_area shot_zone_basic shot_zone_range;
+model shot_made_flag = action_type minutes_remaining period seconds_remaining shot_zone_area shot_zone_basic shot_zone_range game_pct minutes_remaining*seconds_remaining / scale=none ctable clparm=wald lackfit;
+run;
+
+*Forward variable selection;
+proc logistic data=kobetrain plots=all;
+class action_type period combined_shot_type season shot_type shot_zone_area shot_zone_basic shot_zone_range team_name opponent home_away achilles shaq;
+model shot_made_flag = action_type combined_shot_type minutes_remaining period season seconds_remaining shot_distance shot_type shot_zone_area shot_zone_basic shot_zone_range game_date opponent attendance arena_temp avgnoisedb game_pct home_away achilles shaq minutes_remaining*seconds_remaining / selection=forward;
+run;
+
+*Stepwise variable selection;
+proc logistic data=kobetrain plots=all;
+class action_type period combined_shot_type season shot_type shot_zone_area shot_zone_basic shot_zone_range team_name opponent home_away achilles shaq;
+model shot_made_flag = action_type combined_shot_type minutes_remaining period season seconds_remaining shot_distance shot_type shot_zone_area shot_zone_basic shot_zone_range game_date opponent attendance arena_temp avgnoisedb game_pct home_away achilles shaq minutes_remaining*seconds_remaining / selection=stepwise;
+run;
+
+*Model selected by Forward and Stepwise is the same;
+proc logistic data=kobetrain plots=all;
+class action_type period shot_zone_area shot_zone_basic shot_zone_range;
+model shot_made_flag = action_type minutes_remaining period seconds_remaining period shot_zone_area shot_zone_basic shot_zone_range game_date game_pct minutes_remaining*seconds_remaining / scale=none ctable clparm=wald lackfit;
+run;
