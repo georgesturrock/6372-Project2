@@ -41,6 +41,41 @@ data kobe kaggle_test;
 	else output kobe;
 run;
 
+/* === Calculate Per Game Shooting Percentage Columns in Kobe and Kaggle_test ===*/
+*Calculate Per Game Shooting Percentage for known shots;
+proc means data=kobe mean;
+class game_id;
+var shot_made_flag;
+output out=gameshotpct mean=shoot_pct;
+run;
+
+*Join per game shooting percentage back to kobe;
+proc sql;
+update kobe
+set game_pct = 
+(select shoot_pct from gameshotpct
+where kobe.game_id = gameshotpct.game_id)
+where kobe.game_id in (select game_id from gameshotpct);
+quit;
+
+*Join per game shooting percentage back to kobetrain;
+proc sql;
+update kaggle_test
+set game_pct = 
+(select shoot_pct from gameshotpct
+where kaggle_test.game_id = gameshotpct.game_id)
+where kaggle_test.game_id in (select game_id from gameshotpct);
+quit;
+
+*sort data prior to running proc sgscatter;
+proc sort data=kobe;
+by shot_made_flag;
+run;
+
+proc sgscatter data=kobe;
+by shot_made_flag;
+matrix attendance arena_temp avgnoisedb game_pct / ellipse=(type=mean alpha=.05) diagonal=(histogram kernel);
+run;
 
 /*=== DATA EXPLORATION ===*/
 /* Character variable freq checks */
