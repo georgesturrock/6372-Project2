@@ -1,10 +1,17 @@
 *Import Data Set;
-PROC IMPORT DATAFILE='/home/bmanry0/sasuser.v94/MSDS 6372/final project/KobeDataProj2.csv'
-	replace
+%web_drop_table(WORK.kobe);
+
+FILENAME REFFILE '/home/gsturrock0/STAT2/Project 2/KobeDataProj2.csv';
+
+PROC IMPORT DATAFILE=REFFILE
 	DBMS=CSV
 	OUT=WORK.kobe;
 	GETNAMES=YES;
 RUN;
+
+*PROC CONTENTS DATA=WORK.kobe; 
+*RUN;
+%web_open_table(WORK.kobe);
 
 *Create additional columns for analysis in data set;
 data kobe;
@@ -41,6 +48,41 @@ data kobe kaggle_test;
 	else output kobe;
 run;
 
+/* === Calculate Per Game Shooting Percentage Columns in Kobe and Kaggle_test ===*/
+*Calculate Per Game Shooting Percentage for known shots;
+proc means data=kobe mean;
+class game_id;
+var shot_made_flag;
+output out=gameshotpct mean=shoot_pct;
+run;
+
+*Join per game shooting percentage back to kobe;
+proc sql;
+update kobe
+set game_pct = 
+(select shoot_pct from gameshotpct
+where kobe.game_id = gameshotpct.game_id)
+where kobe.game_id in (select game_id from gameshotpct);
+quit;
+
+*Join per game shooting percentage back to kobetrain;
+proc sql;
+update kaggle_test
+set game_pct = 
+(select shoot_pct from gameshotpct
+where kaggle_test.game_id = gameshotpct.game_id)
+where kaggle_test.game_id in (select game_id from gameshotpct);
+quit;
+
+*sort data prior to running proc sgscatter;
+proc sort data=kobe;
+by shot_made_flag;
+run;
+
+proc sgscatter data=kobe;
+by shot_made_flag;
+matrix attendance arena_temp avgnoisedb game_pct / ellipse=(type=mean alpha=.05) diagonal=(histogram kernel);
+run;
 
 /*=== DATA EXPLORATION ===*/
 /* Character variable freq checks */
@@ -85,5 +127,3 @@ proc sgpanel data=kobe;
 	panelby shot_zone_range shot_angle;
 	heatmap  x = loc_x y = loc_y / colorresponse=shot_made_flag colorstat=mean transparency=.4 colormodel=(RGBAFF000015 a00FF0066) xbinsize=30 ybinsize=30;
 run;
-
-
