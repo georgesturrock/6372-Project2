@@ -90,3 +90,13 @@ title2 'Logistic Regression Models';
 run;
 title;
 title2;
+
+/* === Create Influence Plots for logistic regression === */
+proc logistic data=kobe /*descending*/ plots(maxpoints=none label only)=(leverage dpc);
+class action_type shot_zone_area shot_zone_basic shot_zone_range home_away achilles;
+model shot_made_flag = action_type minutes_remaining period seconds_remaining /*total_sec_remaining*/ shot_zone_area shot_zone_basic shot_zone_range game_pct home_away achilles minutes_remaining*seconds_remaining;
+run;
+
+*examine observations 3521 and 22118;
+proc print data=kobe (firstobs=22118 obs=22118);
+run;
