@@ -81,7 +81,7 @@ run;
 
 proc sgscatter data=kobe;
 by shot_made_flag;
-matrix attendance arena_temp avgnoisedb game_pct total_seconds_remaining / ellipse=(type=mean alpha=.05) diagonal=(histogram kernel);
+matrix attendance arena_temp avgnoisedb game_pct total_sec_remaining / ellipse=(type=mean alpha=.05) diagonal=(histogram kernel);
 run;
 
 /* === PROC CORR Test for multicolinearity and covariance === */
