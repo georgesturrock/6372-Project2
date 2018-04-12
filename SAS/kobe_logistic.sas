@@ -1,4 +1,4 @@
-/* === Logistic Regression Models === */
+/* === Train Logistic Regression Models === */
 
 **kitchen sink logistic regression model;
 *proc logistic data=kobe plots=all;
@@ -48,7 +48,7 @@ model shot_made_flag = action_type period seconds_remaining total_sec_remaining 
 output out=FwdandStep_Pred predprobs=crossvalidate;
 run;
 
-/* === Calculate Objective Log Loss for all models === */
+/* === Calculate Objective Log Loss for all trained models === */
 data fwdandstep_pred;
 set fwdandstep_pred;
 model='forward and stepwise';
@@ -97,6 +97,56 @@ class action_type shot_zone_area shot_zone_basic shot_zone_range home_away achil
 model shot_made_flag = action_type minutes_remaining period seconds_remaining /*total_sec_remaining*/ shot_zone_area shot_zone_basic shot_zone_range game_pct home_away achilles minutes_remaining*seconds_remaining;
 run;
 
-*examine observations 3521 and 22118;
-proc print data=kobe (firstobs=22118 obs=22118);
+**examine observations 3521 and 22118;
+*proc print data=kobe (firstobs=22118 obs=22118);
+*run;
+
+/* === Create Logistic Regression Submission Files === */
+data fullkobe;
+set kobe kaggle_test;
+run;
+
+* Manual Model;
+proc logistic data=fullkobe plots=all;
+class action_type shot_zone_area shot_zone_basic shot_zone_range home_away achilles;
+model shot_made_flag = action_type minutes_remaining period seconds_remaining /*total_sec_remaining*/ shot_zone_area shot_zone_basic shot_zone_range game_pct home_away achilles minutes_remaining*seconds_remaining / scale=none ctable clparm=wald lackfit;
+output out=manual_submit predprobs=crossvalidate;
+run;
+
+data manual_submit;
+set manual_submit;
+if shot_made_flag = '.';
+if XP_1 = '.' then shot_made_flag = game_pct;
+else shot_made_flag = XP_1;
+keep shot_id shot_made_flag;
+run;
+
+* Backward Model;
+proc logistic data=fullkobe plots=all;
+class action_type shot_zone_area shot_zone_basic shot_zone_range;
+model shot_made_flag = action_type minutes_remaining period seconds_remaining shot_zone_area shot_zone_basic shot_zone_range game_pct minutes_remaining*seconds_remaining / scale=none ctable clparm=wald lackfit;
+output out=Backward_Pred predprobs=crossvalidate;
+run;
+
+data backward_submit;
+set backward_pred;
+if shot_made_flag = '.';
+if XP_1 = '.' then shot_made_flag = game_pct;
+else shot_made_flag = XP_1;
+keep shot_id shot_made_flag;
+run;
+
+* Stepwise and Forward Model;
+proc logistic data=fullkobe plots=all;
+class action_type period shot_zone_area shot_zone_basic shot_zone_range;
+model shot_made_flag = action_type period seconds_remaining total_sec_remaining shot_zone_area shot_zone_basic shot_zone_range game_date game_pct / scale=none ctable clparm=wald lackfit;
+output out=FwdandStep_Pred predprobs=crossvalidate;
+run;
+
+data fwdandstep_submit;
+set fwdandstep_pred;
+if shot_made_flag = '.';
+if XP_1 = '.' then shot_made_flag = game_pct;
+else shot_made_flag = XP_1;
+keep shot_id shot_made_flag;
 run;
