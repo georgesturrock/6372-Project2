@@ -40,6 +40,22 @@ run;
 title;
 title2;
 
+/* === Interpretation Question #2
+The relationship between the distance Kobe is from the hoop and the odds of him making the shot is different 
+if they are in the playoffs.  Quantify your findings with statistical evidence one way or the other. 
+ */
+proc hplogistic data=kobe;
+class shot_made_flag (ref = '1') / param=ref;
+model shot_made_flag = shot_distance / lackfit(ngroups = 15);
+output out=kobe_interp2 predicted=pred;
+run;
+
+proc logistic data=kobe plots(maxpoints=none)=all;
+*class shot_made_flag (ref = '1') / param=ref;
+model shot_made_flag(event='1') = shot_distance / scale=none ctable clparm=wald lackfit cl;
+output out=kobe_interp2 predicted=pred;
+run;
+
 /* === Interpretation Question #3 ===
 The relationship between the distance Kobe is from the hoop and the odds of him making the shot is 
 different if they are in the playoffs.  Quantify your findings with statistical evidence one way or the other.
