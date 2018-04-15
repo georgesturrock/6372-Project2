@@ -2,6 +2,7 @@
 %web_drop_table(WORK.kobe);
 *FILENAME REFFILE '/home/gsturrock0/STAT2/Project 2/KobeDataProj2.csv';
 FILENAME REFFILE '/home/bmanry0/sasuser.v94/MSDS 6372/final project/KobeDataProj2.csv';
+libname sasdata '/home/bmanry0/sasuser.v94/MSDS 6372/final project/sasdata/'; /* Save folder for keeping sas data sets*/
 
 PROC IMPORT DATAFILE=REFFILE
 	DBMS=CSV
@@ -16,6 +17,9 @@ data kobe;
 	set kobe;
 	*Total time remaining;
 	total_sec_remaining = seconds_remaining + (minutes_remaining*60);
+	if period < 5 then game_sec_remaining = (period-4)*(-720) + total_sec_remaining;
+	else if period >= 5 then game_sec_remaining = (period-5)*(-300) - total_sec_remaining;
+	
 	*Convert shot made flag to numeric;
 	if shot_made_flag = "NA" then shot_made_flag = .;
 	num_shot_made_flag = input(shot_made_flag, 1.);
@@ -38,7 +42,7 @@ run;
 
 /* Shot Seqence by Game */
 proc sort data=kobe;
-	by game_id descending total_sec_remaining  ;
+	by game_id game_event_id  ;
 run;
  
 data kobe;
@@ -50,6 +54,13 @@ data kobe;
 run;
 
 /* Previous Shot Lag */
+/* overall shooting pct*/
+proc sql noprint;
+	select mean(shot_made_flag) as overall_pct into :overall_pct
+	from kobe
+	where not missing(shot_made_flag);
+quit;
+
 proc expand data=kobe out=temp_lag1;
 	by game_id;
 	convert shot_made_flag = last_5_shot   / transout=(movave 5);
@@ -74,6 +85,13 @@ data kobe;
 	merge kobe 
 		temp_lag1(keep=game_id last_5_shot last_5_shot_weighted last_shots_exp)
 		temp_lag2(keep=game_id last_5_game last_5_game_weighted last_games_exp);
+		
+		if missing(last_5_shot) then last_5_shot = &overall_pct;
+		if missing(last_5_shot_weighted) then last_5_shot_weighted = &overall_pct;
+		if missing(last_shots_exp) then last_shots_exp = &overall_pct;
+		if missing(last_5_game) then last_5_game = &overall_pct;
+		if missing(last_5_game_weighted) then last_5_game_weighted = &overall_pct;
+		if missing(last_games_exp) then last_games_exp = &overall_pct;
 run;
 
 proc datasets library=work nolist nodetails;
@@ -100,22 +118,18 @@ run;
 	
 %meanPct(game_id, kobe, var_name = game_pct);
 
-/* Separate Kaggle test from remaining data */
-data kobe kaggle_test;
-	set kobe;
-	if missing(shot_made_flag) then output kaggle_test;
-	else output kobe;
-run;
-
 /*=== DATA EXPLORATION ===*/
 *sort data prior to running proc sgscatter;
 proc sort data=kobe;
-by shot_made_flag;
+	by shot_made_flag;
 run;
 
 proc sgscatter data=kobe;
-by shot_made_flag;
-matrix attendance arena_temp avgnoisedb game_pct total_sec_remaining / ellipse=(type=mean alpha=.05) diagonal=(histogram kernel);
+	matrix attendance arena_temp avgnoisedb loc_x loc_y shot_distance total_sec_remaining / diagonal=(histogram kernel);
+run;
+proc sgplot data=kobe;
+	scatter x=game_pct y=attendance;
+	reg x=game_pct y=attendance;
 run;
 
 /* === PROC CORR Test for multicolinearity and covariance === */
@@ -123,10 +137,10 @@ proc corr data=work.kobe;
 var shot_made_flag minutes_remaining period seconds_remaining shot_distance game_date attendance arena_temp avgnoisedb game_pct total_sec_remaining;
 run;
 
-
 /* Character variable freq checks */
 data kobe_explore;
 	set kobe;
+	if not missing(shot_made_flag);
 	drop game_shot_id;
 run;
 
@@ -166,7 +180,6 @@ run;
 %seriesPlot(period, grp_var = home_away);
 %seriesPlot(game_date);
 
-
 /*=== Macro for zoned heat map scatter plot ===*/
 %macro make_heat_scatter(cat_vars);
 	ods graphics on / width=6in height=6in noscale;
@@ -186,7 +199,11 @@ run;
 
 /*=== Shot Clustering ===*/
 /* Shot Clustering */
-proc cluster data = kobe method=complete outtree=clust1 plots=all NOID PRINT=500 pseudo ccc;                                                                       
+data temp_cluster_data;
+	set kobe;
+	if missing(shot_made_flag) then shot_made_flag = 0.5;
+run;
+proc cluster data = temp_cluster_data method=complete outtree=sasdata.clust1 plots=all NOID PRINT=500 pseudo ccc;                                                                       
   var loc_x loc_y shot_made_flag;                                                                                                        
   id game_shot_id;                                                                                                                                 
 run;  
@@ -196,7 +213,7 @@ proc sort data = kobe;
 run; 
 
 %macro addCluster(nclust);
-	proc tree data = clust1 nclusters=&nclust  out=clust&nclust. dock=5 noprint;                                                                              
+	proc tree data = sasdata.clust1 nclusters=&nclust  out=clust&nclust. dock=5 noprint;                                                                              
 	  id game_shot_id;   
 	run; 
 	data clust&nclust.;
@@ -245,10 +262,15 @@ proc sgpanel data=kobe;
 	heatmap  x = loc_x y = loc_y / colorresponse=shot_made_flag colorstat=mean transparency=.4 colormodel=(RGBAFF000015 a00FF0066) xbinsize=30 ybinsize=30;
 run;
 
-proc sql;
-	select distinct game_id, game_date
-	from kobe
-	order by game_id;
-quit;
+
+/* SAVE DATA */
+data sasdata.kobe sasdata.kaggle_test;
+	set kobe;
+	if missing(shot_made_flag) then output sasdata.kaggle_test;
+	else output sasdata.kobe;
+run;
+
+
+
 
 
